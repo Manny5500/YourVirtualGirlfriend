@@ -1,0 +1,14 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/circle_background" />
+    <item><inset
+            android:insetTop="5dp"
+            android:insetBottom="5dp"
+            android:insetLeft="5dp"
+            android:insetRight="5dp">
+        <bitmap
+            android:src="@drawable/love__1_"
+            android:gravity="center"
+            android:tint="@color/white"/>
+
+    </inset>    </item>
+</layer-list>
