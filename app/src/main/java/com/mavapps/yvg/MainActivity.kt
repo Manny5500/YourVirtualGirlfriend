@@ -63,6 +63,8 @@ import com.mavapps.yvg.utils.ChatType
 import com.mavapps.yvg.utils.theme1
 import com.mavapps.yvg.utils.theme2
 import com.mavapps.yvg.utils.theme3
+import com.mavapps.yvg.utils.theme4
+import com.mavapps.yvg.utils.theme6
 import kotlinx.coroutines.delay
 
 val primaryColor = Color(0xFFB3304C)
@@ -105,7 +107,13 @@ class MainActivity : ComponentActivity() {
         val viewModel: MainViewModel = MainViewModel(dao)
         setContent {
             val uiState by viewModel.uiState.collectAsState()
-            themeColor = if(uiState.gf.aiId == 1)  theme2 else if(uiState.gf.aiId == 2) theme3  else  theme1
+            themeColor = when(uiState.gf.aiId){
+                1 -> theme2
+                2 -> theme3
+                3 -> theme4
+                5 -> theme6
+                else -> theme1
+            }
             val isOnSplash = remember { mutableStateOf(true) }
             YVGTheme {
                 if(isOnSplash.value){
@@ -166,7 +174,7 @@ class MainActivity : ComponentActivity() {
                         if(uiState.currentScreen == "selection"){
                             Selection(onItemClicked = {viewModel.updateGF(it); viewModel.updateCurrentScreen("chat")}, modifier = Modifier.padding(innerPadding))
                         }else{
-                            LaunchedEffect(Unit) {
+                            LaunchedEffect(uiState.gf.aiId) {
                                 viewModel.observeChats(uiState.gf.aiId, 1)
                             }
                             val chatList by viewModel.chats.collectAsState()
@@ -177,7 +185,6 @@ class MainActivity : ComponentActivity() {
                                 textFieldContent = uiState.userChat,
                                 onSubmit = {
                                     viewModel.onUserSubmit()
-                                    viewModel.submitMessage()
                                 },
                                 list = chatList
                             )
@@ -188,7 +195,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
 
 @Preview(showBackground = true)
 @Composable

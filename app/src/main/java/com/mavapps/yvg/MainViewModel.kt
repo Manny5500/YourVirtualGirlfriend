@@ -9,9 +9,13 @@ import com.mavapps.yvg.model.GF
 import com.mavapps.yvg.utils.AITypes
 import com.mavapps.yvg.utils.ChatType
 import com.mavapps.yvg.utils.genModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.sql.Timestamp
 
@@ -27,22 +31,34 @@ class MainViewModel(
     private val _chats = MutableStateFlow<List<Chat>>(emptyList())
     val chats: StateFlow<List<Chat>> = _chats
 
+    private var chatsJob: Job? = null
+
     fun observeChats(aiId: Int, userId: Int) {
-        viewModelScope.launch {
-            chatDao.getByAIandUser(aiId, userId).collect {
-                Log.d("TAGGER_CHATS", "Im executing ${it.size}")
-                _chats.value = it
-            }
+        chatsJob?.cancel() // cancel previous collection
+        chatsJob = viewModelScope.launch {
+            chatDao.getByAIandUser(aiId, userId)
+                .distinctUntilChanged() // optional, to avoid duplicate lists
+                .collect { chats ->
+                    Log.d("TAGGER_CHATS", "Im executing ${chats.size}")
+                    _chats.value = chats
+                }
         }
     }
 
+    fun chats(aiId: Int, userId: Int): StateFlow<List<Chat>> =
+        chatDao.getByAIandUser(aiId, userId)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
     fun onBackButton(screen: String){
         updateState {
             it.copy(currentScreen = screen)
         }
         _chats.value = emptyList()
     }
-
+    
     fun updateCurrentScreen(screen : String){
         updateState {
             it.copy(currentScreen =  screen)
@@ -79,6 +95,7 @@ class MainViewModel(
             )
             chatDao.insert(chat)
         }
+        submitMessage()
         updateState { it.copy( userChat = "")}
     }
     fun submitMessage(
@@ -87,13 +104,26 @@ class MainViewModel(
         val aiId = uiState.value.gf.aiId
         val message = uiState.value.userChat
         val gf = AITypes.girlfriendTypes.find { it.aiId == aiId }
+        if(gf == null) return
         viewModelScope.launch{
             try {
+                Log.d("TAGGER_COMPOSE", "the message is $message")
                 val prompt =
-                    " You are a virtual girlfriend" +
-                    " charactheristics : ${gf!!.attributes}" +
-                    " Please reply to any chat of the user." +
-                    " This is the chat of the user: ${message}"
+                    "You are a virtual girlfriend" +
+                            " Your name is: ${gf.aiName}" +
+                            " Characteristics: ${gf.attributes}" +
+                            " Please reply to any chat of the user." +
+                            " This is the chat of the user: $message." +
+                            " This is the last 5 history of your chat with the user: ${
+                                chats.value.takeLast(5).joinToString(separator = "\n") { it.message }
+                            }"
+
+                Log.d("TAGGER_COMPOSE", "The prompt is : ${prompt}")
+
+                Log.d("TAGGER_COMPOSE", "${
+                    chats.value.takeLast(5).joinToString(separator = "\n") { it.message }
+                }\"")
+
                 val response = genModel.generativeModel.generateContent(prompt)
                 val resultText = response.text
                 resultText?.let{
@@ -161,4 +191,6 @@ data class UIState(
      chatType,
      message
  )
+
+
  **/

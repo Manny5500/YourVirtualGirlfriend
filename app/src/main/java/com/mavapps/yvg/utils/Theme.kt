@@ -29,9 +29,9 @@ val theme3 : Colors = Colors(
 )
 
 val theme4 : Colors = Colors(
-    primary   = Color(0xFFB3304C),
-    secondary = Color(0xFFEF95A3),
-    tertiary  = Color(0xFFFFD6DC)
+    primary   = Color(0xFFD8F3DC),
+    secondary = Color(0xFF95D5D2),
+    tertiary  = Color(0xFF74C69D)
 )
 
 val theme5 : Colors = Colors(
@@ -39,3 +39,10 @@ val theme5 : Colors = Colors(
     secondary = Color(0xFFEF95A3),
     tertiary  = Color(0xFFFFD6DC)
 )
+
+val theme6: Colors = Colors(
+    primary = Color(0xFF293045),
+    secondary = Color(0xFF4A6388),
+    tertiary = Color(0xFF091C32)
+)
+
