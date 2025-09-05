@@ -6,8 +6,11 @@ import com.mavapps.yvg.utils.AITypes
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +32,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,13 +50,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.Room
@@ -135,7 +144,7 @@ class MainActivity : ComponentActivity() {
                                                     .clip(CircleShape)
                                                     .clickable { },
                                                 model = ImageRequest.Builder(LocalContext.current)
-                                                    .data(R.drawable.model)
+                                                    .data(uiState.gf.imageResource)
                                                     .placeholder(R.drawable.user)
                                                     .crossfade(true)
                                                     .build(),
@@ -172,7 +181,13 @@ class MainActivity : ComponentActivity() {
                         }
                     ) { innerPadding ->
                         if(uiState.currentScreen == "selection"){
-                            Selection(onItemClicked = {viewModel.updateGF(it); viewModel.updateCurrentScreen("chat")}, modifier = Modifier.padding(innerPadding))
+                            Selection(
+                                onItemClicked = {
+                                    viewModel.updateGF(it)
+                                    viewModel.updateCurrentScreen("chat")
+                                },
+                                modifier = Modifier.padding(innerPadding)
+                            )
                         }else{
                             LaunchedEffect(uiState.gf.aiId) {
                                 viewModel.observeChats(uiState.gf.aiId, 1)
@@ -186,7 +201,9 @@ class MainActivity : ComponentActivity() {
                                 onSubmit = {
                                     viewModel.onUserSubmit()
                                 },
-                                list = chatList
+                                list = chatList,
+                                onDelete = {viewModel.onDeleteChat(it)},
+                                imageResource = uiState.gf.imageResource
                             )
                         }
                     }
@@ -196,6 +213,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/*
 @Preview(showBackground = true)
 @Composable
 fun SelectionPreview(){
@@ -203,6 +221,8 @@ fun SelectionPreview(){
         Selection({})
     }
 }
+
+ */
 
 @Composable
 fun Selection(
@@ -221,13 +241,24 @@ fun Selection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                Text("${i+1}")
-                Spacer(modifier = Modifier.width(10.dp))
+                AsyncImage(
+                    modifier = Modifier
+                        .height(50.dp)
+                        .width(50.dp)
+                        .clip(CircleShape)
+                        .clickable { },
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(gf.imageResource)
+                        .placeholder(R.drawable.user)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                )
                 Text(gf.aiName)
             }
             Spacer(Modifier.height(0.5.dp))
         }
-
     }
 }
 
@@ -240,7 +271,9 @@ fun Greeting(
     onValueChange: (String) -> Unit,
     textFieldContent: String,
     onSubmit: () -> Unit,
-    list: List<Chat>
+    list: List<Chat>,
+    onDelete: (Int) -> Unit,
+    imageResource: Int
 ) {
     val listState = rememberLazyListState()
     LaunchedEffect(list.size) {
@@ -255,7 +288,18 @@ fun Greeting(
             state = listState
         ) {
             items(list) { chat ->
-                if(chat.chatType == ChatType.AITYPE.id) ModelChat(chat.message) else UserChat(chat.message)
+                if(chat.chatType == ChatType.AITYPE.id){
+                    ModelChat(
+                        message = chat.message,
+                        imageResource = imageResource
+                    )
+                } else {
+                    UserChat(
+                        message =chat.message,
+                        onDelete = {onDelete(chat.chatId)}
+                    )
+                }
+
             }
         }
 
@@ -317,10 +361,10 @@ fun TextField(
     }
 }
 
-
 @Composable
 fun ModelChat(
-    message: String
+    message: String,
+    imageResource : Int = R.drawable.user
 ){
     Row{
         Spacer(Modifier.width(20.dp))
@@ -331,8 +375,8 @@ fun ModelChat(
                 .clip(CircleShape)
                 .clickable { },
             model = ImageRequest.Builder(LocalContext.current)
-                .data(R.drawable.model)
-                .placeholder(R.drawable.user)
+                .data(imageResource)
+                .placeholder(imageResource)
                 .crossfade(true)
                 .build(),
             contentDescription = null,
@@ -343,7 +387,6 @@ fun ModelChat(
             Modifier.fillMaxWidth()
                 .padding(end = 40.dp)
         ) {
-
             Box(
                 modifier = Modifier
                     .padding(8.dp)
@@ -357,40 +400,73 @@ fun ModelChat(
                 )
             }
         }
-
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun UserChat(
-    message : String
+    message : String,
+    onDelete : () -> Unit
 ){
+    var expanded by remember{mutableStateOf(false)}
+    var pressOffset by remember { mutableStateOf(DpOffset.Zero) }
+
     Row{
         Spacer(Modifier.width(20.dp))
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(start = 40.dp),
-            horizontalAlignment = Alignment.End
-        ) {
-
-            Box(
-                modifier = Modifier
-                    .padding(8.dp)
-                    .background(themeColor.secondary, shape = RoundedCornerShape(16.dp))
-                    .padding(12.dp)
+        Box{
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 40.dp),
+                horizontalAlignment = Alignment.End
             ) {
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = Color.White
-                )
+
+                Box(
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .background(themeColor.secondary, shape = RoundedCornerShape(16.dp))
+                        .padding(12.dp)
+                        .pointerInput(Unit){
+                            detectTapGestures {offset->
+                                pressOffset = DpOffset(offset.x.toDp(), offset.y.toDp())
+                                expanded = true
+                            }
+                        }
+                ) {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White
+                    )
+                }
+            }
+            if(expanded){
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    modifier = Modifier.fillMaxWidth().background(Color.Red)
+                ){
+                    Spacer(modifier = Modifier.weight(1f).background(Color.Red))
+                    DropdownMenu(
+                        modifier = Modifier.align(Alignment.End),
+                        expanded = expanded,
+                        onDismissRequest = {expanded = false},
+                        offset = pressOffset
+                    ){
+                        DropdownMenuItem(
+                            text = {Text("Delete")},
+                            onClick = {
+                                expanded = false
+                                onDelete()
+                            }
+                        )
+                    }
+                }
             }
         }
     }
 }
 val roundedShape = RoundedCornerShape(8.dp)
-
 
 @Composable
 fun SplashScreen(navToHome: () -> Unit) {
@@ -399,7 +475,8 @@ fun SplashScreen(navToHome: () -> Unit) {
         navToHome()
     }
     Box(
-        modifier = Modifier
+        modifier =
+            Modifier
             .fillMaxSize()
             .background(Color(0xFFB3304C)),
         contentAlignment = Alignment.Center
@@ -421,3 +498,4 @@ fun SplashScreen(navToHome: () -> Unit) {
         )
     }
 }
+

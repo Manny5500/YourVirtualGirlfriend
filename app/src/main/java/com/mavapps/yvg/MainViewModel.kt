@@ -98,6 +98,15 @@ class MainViewModel(
         submitMessage()
         updateState { it.copy( userChat = "")}
     }
+
+
+    fun onDeleteChat(
+        chatId : Int
+    ){
+        viewModelScope.launch {
+            chatDao.deleteByChatId(chatId)
+        }
+    }
     fun submitMessage(
     ){
         val userId = 1

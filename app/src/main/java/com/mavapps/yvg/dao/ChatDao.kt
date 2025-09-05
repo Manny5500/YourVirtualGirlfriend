@@ -1,6 +1,7 @@
 package com.mavapps.yvg.dao
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -15,5 +16,7 @@ interface ChatDao {
     @Query("SELECT * FROM chat WHERE aiId = :aiId AND userId = :userId ORDER BY dateTime ASC")
     fun getByAIandUser(aiId: Int, userId: Int): Flow<List<Chat>>
 
+    @Query("DELETE FROM chat WHERE chatId = :chatId")
+    suspend fun deleteByChatId(chatId : Int)
 
 }
